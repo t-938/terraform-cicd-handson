@@ -1,0 +1,88 @@
+name: Terraform Plan
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+env:
+  AWS_REGION: ap-northeast-1
+  TF_VERSION: "1.12"
+
+jobs:
+  terraform-plan:
+    name: Terraform Plan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v5
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/tf-cicd-handson-github-actions-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Terraform Format Check
+        id: fmt
+        run: terraform fmt -check -recursive
+        continue-on-error: true
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Validate
+        id: validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        id: plan
+        run: terraform plan -no-color -input=false
+        continue-on-error: true
+
+      - name: Post Plan to PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fmtOutcome = '${{ steps.fmt.outcome }}';
+            const validateOutcome = '${{ steps.validate.outcome }}';
+            const planOutcome = '${{ steps.plan.outcome }}';
+            const planOutput = `${{ steps.plan.outputs.stdout }}`.slice(0, 60000);
+
+            const body = `### Terraform Plan 結果
+
+            | チェック | 結果 |
+            |---------|------|
+            | 📝 Format | \`${fmtOutcome}\` |
+            | ✅ Validate | \`${validateOutcome}\` |
+            | 📋 Plan | \`${planOutcome}\` |
+
+            <details>
+            <summary>Plan 詳細（クリックで展開）</summary>
+
+            \`\`\`
+            ${planOutput}
+            \`\`\`
+            </details>`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+
+      - name: Check Results
+        if: steps.fmt.outcome == 'failure' || steps.plan.outcome == 'failure'
+        run: exit 1
