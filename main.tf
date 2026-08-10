@@ -7,7 +7,7 @@ terraform {
   }
 
   backend "s3" {
-    bucket       = "terraform-cicd-handson-tfstate-t-938"
+    bucket       = "terraform-cicd-handson-tfstate-<your-github-username>"
     key          = "terraform.tfstate"
     region       = "ap-northeast-1"
     use_lockfile = true
@@ -120,6 +120,6 @@ resource "aws_instance" "web" {
 
   tags = {
     Name = "${var.prefix}-ec2"
-    Environment = "test"
+    Environment = "dev"
   }
 }
