@@ -120,6 +120,6 @@ resource "aws_instance" "web" {
 
   tags = {
     Name = "${var.prefix}-ec2"
-    Environment = "test2"
+    Environment = "dev"
   }
 }
